@@ -33,20 +33,23 @@ jobs:
         run: |
           # Configure git credential store
           git config --global credential.helper store
-          echo "https://${GIT_TOKEN}:x-oauth-basic@github.com" > ~/.git-credentials
+          "https://${env:GIT_TOKEN}:x-oauth-basic@github.com" | Out-File -FilePath "$HOME/.git-credentials" -Encoding utf8 -NoNewline
 
           # Remove any existing gitops directory
-          rm -rf gitops
+          if (Test-Path gitops) {
+            Remove-Item -Recurse -Force gitops
+          }
 
           # Clone repository using HTTPS URL without token
           git clone https://github.com/nguyenhcp2004/grade-api-gitops.git gitops
-          cd gitops
+          Set-Location gitops
 
-          if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s|image: ghcr.io/${{ github.repository }}:.*|image: ghcr.io/${{ github.repository }}:${{ github.sha }}|g" deployment.yaml
-          else
-            sed -i "s|image: ghcr.io/${{ github.repository }}:.*|image: ghcr.io/${{ github.repository }}:${{ github.sha }}|g" deployment.yaml
-          fi
+          # Update deployment.yaml with new image tag
+          $content = Get-Content deployment.yaml -Raw
+          $pattern = "image: ghcr.io/${{ github.repository }}:.*"
+          $replacement = "image: ghcr.io/${{ github.repository }}:${{ github.sha }}"
+          $content = $content -replace $pattern, $replacement
+          Set-Content deployment.yaml -Value $content -NoNewline
 
           # Commit changes
           git config --global user.name "GitHub Actions"
@@ -55,4 +58,4 @@ jobs:
           git commit -m "Update image to ${{ github.sha }}"
 
           # Push
-          git push -f https://${GIT_TOKEN}@github.com/nguyenhcp2004/grade-api-gitops.git main
+          git push -f https://${env:GIT_TOKEN}@github.com/nguyenhcp2004/grade-api-gitops.git main
